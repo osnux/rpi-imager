@@ -1,0 +1,16 @@
+# udev rules for Telechips / TOPST SBC USB boot devices (FWDN mode)
+# Grants user access without root for FWDN flashing functionality in TOPST Imager.
+#
+# Install to /etc/udev/rules.d/ and reload:
+#   sudo cp 99-topst.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Telechips SoC in FWDN mode (TOPST D3 / Dolphin3, etc.)
+SUBSYSTEM=="usb", ATTR{idVendor}=="140e", MODE="0666", TAG+="uaccess"
+
+# Serial/USB ACM ports for TOPST AI-G
+KERNEL=="ttyUSB[0-9]*", MODE="0666", TAG+="uaccess"
+KERNEL=="ttyACM[0-9]*", MODE="0666", TAG+="uaccess"
+

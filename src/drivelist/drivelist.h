@@ -230,6 +230,11 @@ struct DeviceDescriptor {
     std::string fastbootStorageType;     ///< "emmc", "sd", "nvme", "usb", "scsi"
     std::vector<uint8_t> fastbootPortPath; ///< USB port path for multi-device tracking
 
+    // TOPST FWDN fields (device is a Telechips SoC in FWDN USB boot mode)
+    bool isFwdn = false;                 ///< Device is a Telechips SoC in FWDN mode
+    std::string fwdnBoardType;          ///< "topst-d3", "topst-ai"
+    std::string fwdnPort;               ///< Port number or device path (e.g. "COM3", "0")
+
     /**
      * @brief Check if this device should be shown in the UI
      *
@@ -242,9 +247,10 @@ struct DeviceDescriptor {
      * @return true if device should be displayed to user
      */
     [[nodiscard]] bool isDisplayable() const noexcept {
-        // rpiboot and fastboot storage devices are always displayable
+        // rpiboot, fastboot and fwdn storage devices are always displayable
         if (isRpiboot) return true;
         if (isFastbootStorage) return true;
+        if (isFwdn) return true;
 
         // Skip zero-sized devices
         if (size == 0) return false;
@@ -286,6 +292,9 @@ struct DeviceDescriptor {
      * @return String combining device path and size
      */
     [[nodiscard]] std::string uniqueKey() const {
+        if (isFwdn) {
+            return "fwdn:" + fwdnBoardType + ":" + fwdnPort;
+        }
         if (isFastbootStorage) {
             std::string key = "fastboot:";
             for (size_t i = 0; i < fastbootPortPath.size(); ++i) {

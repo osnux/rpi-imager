@@ -26,7 +26,10 @@ DriveListModel::DriveListModel(QObject *parent)
         {isRpibootRole, "isRpiboot"},
         {isFastbootStorageRole, "isFastbootStorage"},
         {fastbootBlockDeviceRole, "fastbootBlockDevice"},
-        {fastbootStorageTypeRole, "fastbootStorageType"}
+        {fastbootStorageTypeRole, "fastbootStorageType"},
+        {isFwdnRole, "isFwdn"},
+        {fwdnBoardTypeRole, "fwdnBoardType"},
+        {fwdnPortRole, "fwdnPort"}
     };
 
     // Enumerate drives in separate thread, but process results in UI thread
@@ -110,6 +113,9 @@ void DriveListModel::processDriveList(std::vector<Drivelist::DeviceDescriptor> l
         bool isFastbootStorage = false;
         QString fastbootBlockDevice;
         QString fastbootStorageType;
+        bool isFwdn = false;
+        QString fwdnBoardType;
+        QString fwdnPort;
     };
     QList<NewDriveInfo> drivesToAdd;
 
@@ -128,6 +134,7 @@ void DriveListModel::processDriveList(std::vector<Drivelist::DeviceDescriptor> l
 
         bool isRpibootDevice = i.isRpiboot;
         bool isFastbootStorage = i.isFastbootStorage;
+        bool isFwdnDevice = i.isFwdn;
 
         // Naked rpiboot devices aren't user-selectable storage — they're just
         // a device-state we react to by triggering auto-bootstrap.  Track
@@ -153,9 +160,9 @@ void DriveListModel::processDriveList(std::vector<Drivelist::DeviceDescriptor> l
             continue;
         }
 
-        // Skip zero-sized devices (but not fastboot devices, which can be
+        // Skip zero-sized devices (but not fastboot or fwdn devices, which can be
         // valid storage targets even when their reported size is 0)
-        if (i.size == 0 && !isFastbootStorage)
+        if (i.size == 0 && !isFastbootStorage && !isFwdnDevice)
             continue;
 
         // Filter virtual devices (loop devices, APFS volumes, VHDs, Storage Spaces).
@@ -211,6 +218,9 @@ void DriveListModel::processDriveList(std::vector<Drivelist::DeviceDescriptor> l
             info.isFastbootStorage = isFastbootStorage;
             info.fastbootBlockDevice = QString::fromStdString(i.fastbootBlockDevice);
             info.fastbootStorageType = QString::fromStdString(i.fastbootStorageType);
+            info.isFwdn = isFwdnDevice;
+            info.fwdnBoardType = QString::fromStdString(i.fwdnBoardType);
+            info.fwdnPort = QString::fromStdString(i.fwdnPort);
             drivesToAdd.append(info);
         }
     }
@@ -264,6 +274,7 @@ void DriveListModel::processDriveList(std::vector<Drivelist::DeviceDescriptor> l
             info.mountpoints, info.childDevices,
             info.isRpiboot,
             info.isFastbootStorage, info.fastbootBlockDevice, info.fastbootStorageType,
+            info.isFwdn, info.fwdnBoardType, info.fwdnPort,
             this);
         endInsertRows();
 

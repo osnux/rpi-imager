@@ -60,7 +60,7 @@
 #include "curlfetcher.h"
 #include "rpibootthread.h"
 #include "fastbootflashthread.h"
-#include "fastbootflashthread.h"
+#include "fwdn/fwdnflashthread.h"
 #include "connect_device_registrar.h"
 #include "curlnetworkconfig.h"
 #include <QDebug>
@@ -507,6 +507,18 @@ ImageWriter::~ImageWriter()
         _fastbootFlashThread = nullptr;
     }
 
+    if (_fwdnFlashThread) {
+        qDebug() << "Stopping FwdnFlashThread";
+        _fwdnFlashThread->cancel();
+        if (!_fwdnFlashThread->wait(10000)) {
+            qWarning() << "FwdnFlashThread did not stop within 10s, terminating";
+            _fwdnFlashThread->terminate();
+            _fwdnFlashThread->wait();
+        }
+        delete _fwdnFlashThread;
+        _fwdnFlashThread = nullptr;
+    }
+
     // Stop background drive list polling
     qDebug() << "Stopping background drive list polling";
     _drivelist.stopPolling();
@@ -627,6 +639,7 @@ void ImageWriter::setDst(const QString &device, quint64 deviceSize)
     _selectedDeviceValid = !device.isEmpty();
     _isRpibootDevice = false;  // Reset — setRpibootDevice() will re-set if needed
     _isFastbootDevice = false;  // Reset — setFastbootDevice() will re-set if needed
+    _isFwdnDevice = false;      // Reset — setFwdnDevice() will re-set if needed
 
     // Reset write completion state when device selection changes
     if (device.isEmpty()) {
@@ -642,15 +655,8 @@ void ImageWriter::setRpibootDevice(const QString &deviceId,
     _rpibootDeviceId = deviceId;
     _rpibootStorageTarget = storageTarget;
     _isRpibootDevice = true;
-    // And no longer the other kind. setFastbootDevice() clears this flag's
-    // counterpart for the same reason: choosePath() asks the fastboot
-    // question first, so a board selected here while that was still set
-    // would be sent down the fastboot path -- the imager talking fastboot to
-    // something that is not listening for it, having skipped the bootstrap
-    // that would have made it listen. Both states can be in the storage list
-    // at once, and the step that fills it in calls one setter per selection
-    // with no reset in between.
     _isFastbootDevice = false;
+    _isFwdnDevice = false;
     _selectedDeviceValid = true;
     // Set _dst to the rpiboot ID so readyToWrite() passes
     _dst = deviceId;
@@ -684,6 +690,7 @@ void ImageWriter::setFastbootDevice(const QString &device, quint64 size)
 
     _isFastbootDevice = true;
     _isRpibootDevice = false;
+    _isFwdnDevice = false;
     _dst = device;
     _devLen = size;
     _selectedDeviceValid = true;
@@ -695,6 +702,54 @@ void ImageWriter::setFastbootDevice(const QString &device, quint64 size)
 bool ImageWriter::isFastbootDevice() const
 {
     return _isFastbootDevice;
+}
+
+void ImageWriter::setFwdnDevice(const QString &device, const QString &boardType, const QString &port)
+{
+    _dst = device;
+    _devLen = 0;
+    _selectedDeviceValid = true;
+    _isRpibootDevice = false;
+    _isFastbootDevice = false;
+    _isFwdnDevice = true;
+
+    if (!boardType.isEmpty()) {
+        _fwdnBoardType = boardType;
+    } else {
+        if (device.contains("topst-ai")) {
+            _fwdnBoardType = QStringLiteral("topst-ai");
+        } else {
+            _fwdnBoardType = QStringLiteral("topst-d3");
+        }
+    }
+
+    if (!port.isEmpty()) {
+        _fwdnPort = port;
+    } else if (device.contains("port=")) {
+        QUrl u(device);
+        QUrlQuery q(u);
+        _fwdnPort = q.queryItemValue("port");
+    } else {
+        _fwdnPort.clear();
+    }
+
+    qDebug() << "TOPST FWDN device selected:" << device
+             << "board=" << _fwdnBoardType << "port=" << _fwdnPort;
+}
+
+bool ImageWriter::isFwdnDevice() const
+{
+    return _isFwdnDevice;
+}
+
+QString ImageWriter::fwdnBoardType() const
+{
+    return _fwdnBoardType;
+}
+
+QString ImageWriter::fwdnPort() const
+{
+    return _fwdnPort;
 }
 
 void ImageWriter::onRpibootDeviceDetected(const QString &deviceId,
@@ -1411,6 +1466,8 @@ void ImageWriter::_configureWriteThread()
 // rather than writing a partition table to a block device.
 ImageWriter::WritePath ImageWriter::choosePath() const
 {
+    if (_isFwdnDevice)
+        return WritePath::FwdnDevice;
     if (_isFastbootDevice)
         return WritePath::FastbootDevice;
     if (_isRpibootDevice)
@@ -1503,6 +1560,16 @@ void ImageWriter::startWrite()
         _fastbootFlashThread = nullptr;
     }
 
+    // Same for the fwdn flash thread.
+    if (_fwdnFlashThread) {
+        if (_fwdnFlashThread->isRunning()) {
+            _fwdnFlashThread->cancel();
+            _fwdnFlashThread->wait(5000);
+        }
+        delete _fwdnFlashThread;
+        _fwdnFlashThread = nullptr;
+    }
+
     if (!readyToWrite())
     {
         // Provide a user-visible error rather than silently returning, so the UI can recover
@@ -1535,6 +1602,47 @@ void ImageWriter::startWrite()
 
     setWriteState(WriteState::Preparing);
     setEjectState(EjectState::EjectIdle);
+
+    if (choosePath() == WritePath::FwdnDevice)
+    {
+        emit preparationStatusUpdate(tr("Starting TOPST FWDN flash..."));
+
+        QUrl flashSrc = _src;
+        if (_cacheManager && !_expectedHash.isEmpty() &&
+            _cacheManager->hasPotentialCache(_expectedHash)) {
+            auto cacheStatus = _cacheManager->getCacheStatus();
+            if (cacheStatus.verificationComplete && cacheStatus.isValid) {
+                flashSrc = QUrl::fromLocalFile(cacheStatus.cacheFileName);
+            }
+        }
+
+        _fwdnFlashThread = new FwdnFlashThread(
+            _fwdnBoardType, _fwdnPort, flashSrc, _downloadLen, _extrLen, this);
+
+        connect(_fwdnFlashThread, &FwdnFlashThread::success, this, &ImageWriter::onSuccess);
+        connect(_fwdnFlashThread, &FwdnFlashThread::error, this, &ImageWriter::onError);
+        connect(_fwdnFlashThread, &FwdnFlashThread::preparationStatusUpdate, this, &ImageWriter::onPreparationStatusUpdate);
+        connect(_fwdnFlashThread, &FwdnFlashThread::downloadProgress, this, [this](quint64 now, quint64 total) {
+            emit downloadProgress(QVariant(now), QVariant(total));
+        });
+        connect(_fwdnFlashThread, &FwdnFlashThread::writeProgress, this, [this](quint64 now, quint64 total) {
+            emit writeProgress(QVariant(now), QVariant(total));
+        });
+        connect(_fwdnFlashThread, &FwdnFlashThread::finalizing, this, &ImageWriter::onFinalizing);
+        connect(_fwdnFlashThread, &FwdnFlashThread::writing, this, [this]() {
+            setWriteState(WriteState::Writing);
+            startProgressPolling();
+        });
+        connect(_fwdnFlashThread, &QThread::finished, this, [this]() {
+            if (_fwdnFlashThread) {
+                _fwdnFlashThread->deleteLater();
+                _fwdnFlashThread = nullptr;
+            }
+        });
+
+        _fwdnFlashThread->start();
+        return;
+    }
 
     if (choosePath() == WritePath::FastbootDevice)
     {
@@ -1872,6 +1980,20 @@ void ImageWriter::cancelWrite()
             if (_fastbootFlashThread) {
                 _fastbootFlashThread->deleteLater();
                 _fastbootFlashThread = nullptr;
+            }
+            setWriteState(WriteState::Cancelled);
+            _emitCancelled();
+        });
+        return;
+    }
+
+    if (_fwdnFlashThread)
+    {
+        _fwdnFlashThread->cancel();
+        connect(_fwdnFlashThread, &QThread::finished, this, [this]() {
+            if (_fwdnFlashThread) {
+                _fwdnFlashThread->deleteLater();
+                _fwdnFlashThread = nullptr;
             }
             setWriteState(WriteState::Cancelled);
             _emitCancelled();
@@ -2951,6 +3073,9 @@ void ImageWriter::onError(QString msg)
     }
     if (_fastbootFlashThread && _fastbootFlashThread->isRunning()) {
         _fastbootFlashThread->cancel();
+    }
+    if (_fwdnFlashThread && _fwdnFlashThread->isRunning()) {
+        _fwdnFlashThread->cancel();
     }
     
     // End performance stats session with error

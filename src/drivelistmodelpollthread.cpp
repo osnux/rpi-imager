@@ -7,6 +7,7 @@
 #include "rpiboot/rpiboot_scanner.h"
 #include "rpiboot/libusb_transport.h"
 #include "fastboot/fastboot_protocol.h"
+#include "fwdn/fwdn_scanner.h"
 #include <set>
 #include <sstream>
 
@@ -137,6 +138,12 @@ void DriveListModelPollThread::run()
         // Fastboot-mode compute modules, if the scan is switched on.
         if (_fastbootScanEnabled.load(std::memory_order_relaxed))
             appendFastbootDevices(driveList);
+
+        // TOPST FWDN device scanning
+        auto fwdnDevices = fwdn::scanFwdnDevices();
+        if (!fwdnDevices.empty()) {
+            driveList.insert(driveList.end(), fwdnDevices.begin(), fwdnDevices.end());
+        }
 
         emit newDriveList(driveList);
         quint32 elapsed = static_cast<quint32>(t1.elapsed());

@@ -31,7 +31,7 @@ Item {
         return name
     }
 
-    readonly property var imageExtensions: ["*.img","*.zip","*.iso","*.gz","*.xz","*.zst","*.wic"]
+    readonly property var imageExtensions: ["*.fai","*.img","*.zip","*.iso","*.gz","*.xz","*.zst","*.wic"]
 
     readonly property var imageFiltersList: withAll([
         qsTr("Image files (%1)").arg(imageExtensions.join(" "))

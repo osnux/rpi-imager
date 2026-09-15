@@ -16,6 +16,7 @@ public:
     explicit DriveListItem(QString device, QString description, quint64 size, bool isUsb = false, bool isScsi = false, bool readOnly = false, bool isSystem = false, QStringList mountpoints = QStringList(), QStringList childDevices = QStringList(),
                            bool isRpiboot = false,
                            bool isFastbootStorage = false, QString fastbootBlockDevice = QString(), QString fastbootStorageType = QString(),
+                           bool isFwdn = false, QString fwdnBoardType = QString(), QString fwdnPort = QString(),
                            QObject *parent = nullptr);
 
     Q_PROPERTY(QString device MEMBER _device CONSTANT)
@@ -31,6 +32,9 @@ public:
     Q_PROPERTY(bool isFastbootStorage MEMBER _isFastbootStorage CONSTANT)
     Q_PROPERTY(QString fastbootBlockDevice MEMBER _fastbootBlockDevice CONSTANT)
     Q_PROPERTY(QString fastbootStorageType MEMBER _fastbootStorageType CONSTANT)
+    Q_PROPERTY(bool isFwdn MEMBER _isFwdn CONSTANT)
+    Q_PROPERTY(QString fwdnBoardType MEMBER _fwdnBoardType CONSTANT)
+    Q_PROPERTY(QString fwdnPort MEMBER _fwdnPort CONSTANT)
     Q_INVOKABLE int sizeInGb();
 
 signals:
@@ -51,6 +55,9 @@ protected:
     bool _isFastbootStorage;
     QString _fastbootBlockDevice;
     QString _fastbootStorageType;
+    bool _isFwdn;
+    QString _fwdnBoardType;
+    QString _fwdnPort;
 };
 
 #endif // DRIVELISTITEM_H

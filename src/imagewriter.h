@@ -45,6 +45,7 @@ class NativeFileDialog;
 #endif
 class RpibootThread;
 class FastbootFlashThread;
+class FwdnFlashThread;
 
 class ImageWriter : public QObject
 {
@@ -278,6 +279,7 @@ public:
     /// precedence somewhere it can be read and tested rather than implied by
     /// the order of three ifs.
     enum class WritePath {
+        FwdnDevice,       ///< TOPST Telechips SoC in FWDN mode
         FastbootDevice,   ///< already in fastboot mode; flash over USB
         RpibootDevice,    ///< needs sideloading into fastboot first
         Erase,            ///< the internal://format sentinel
@@ -514,6 +516,13 @@ public:
     /* Returns true if the current target is a fastboot storage device */
     Q_INVOKABLE bool isFastbootDevice() const;
 
+    /* Set a TOPST FWDN device as the write target */
+    Q_INVOKABLE void setFwdnDevice(const QString &device, const QString &boardType = QString(), const QString &port = QString());
+    /* Returns true if the current target is a TOPST FWDN device */
+    Q_INVOKABLE bool isFwdnDevice() const;
+    Q_INVOKABLE QString fwdnBoardType() const;
+    Q_INVOKABLE QString fwdnPort() const;
+
     // Mint a single-use Raspberry Pi Connect auth key for the
     // currently configured organisation API key.  Used when the
     // target is not a fastboot device — the returned secret is
@@ -734,6 +743,12 @@ protected:
     bool _isFastbootDevice = false;
     QString _fastbootId;
     QString _fastbootBlockDevice;
+
+    // TOPST FWDN device selection
+    bool _isFwdnDevice = false;
+    QString _fwdnBoardType;
+    QString _fwdnPort;
+    FwdnFlashThread *_fwdnFlashThread = nullptr;
 
     // Auto-bootstrap tracking
     QSet<QString> _bootstrappingDevices;           // port path keys in progress

@@ -365,9 +365,12 @@ WizardStepBase {
             property bool isRpiboot: modelData && typeof modelData.isRpiboot !== "undefined" ? modelData.isRpiboot : false
             property bool isFastbootStorage: modelData && typeof modelData.isFastbootStorage !== "undefined" ? modelData.isFastbootStorage : false
             property string fastbootStorageType: modelData && typeof modelData.fastbootStorageType !== "undefined" ? modelData.fastbootStorageType : ""
+            property bool isFwdn: modelData && typeof modelData.isFwdn !== "undefined" ? modelData.isFwdn : false
+            property string fwdnBoardType: modelData && typeof modelData.fwdnBoardType !== "undefined" ? modelData.fwdnBoardType : ""
+            property string fwdnPort: modelData && typeof modelData.fwdnPort !== "undefined" ? modelData.fwdnPort : ""
 
             readonly property bool shouldHide: isSystem && filterSystemDrives.checked
-            readonly property bool unselectable: isReadOnly && !isRpiboot && !isFastbootStorage
+            readonly property bool unselectable: isReadOnly && !isRpiboot && !isFastbootStorage && !isFwdn
             
             // Accessibility properties
             Accessible.role: Accessible.ListItem
@@ -430,6 +433,7 @@ WizardStepBase {
                     Image {
                         id: storageIcon
                         source: dstitem.isRpiboot ? "../icons/ic_rpiboot_40px.svg" :
+                                dstitem.isFwdn ? "../icons/ic_storage_40px.svg" :
                                 dstitem.isFastbootStorage ? (
                                     dstitem.fastbootStorageType === "nvme" ? "../icons/ic_storage_40px.svg" :
                                     "../icons/ic_sd_storage_40px.svg"
@@ -471,7 +475,9 @@ WizardStepBase {
                         }
                         
                         Text {
-                            text: dstitem.isRpiboot ? qsTr("Ready for USB boot") : ImageWriterSingleton.formatSize(parseFloat(dstitem.size))
+                            text: dstitem.isRpiboot ? qsTr("Ready for USB boot") :
+                                  dstitem.isFwdn ? qsTr("TOPST eMMC via FWDN") :
+                                  ImageWriterSingleton.formatSize(parseFloat(dstitem.size))
                             font.pointSize: Style.fontSizeDescription
                             font.family: Style.fontFamily
                             color: dstitem.unselectable ? Style.formLabelDisabledColor : Style.textDescriptionColor
@@ -522,8 +528,10 @@ WizardStepBase {
             return
         }
 
-        // Fastboot storage devices use setFastbootDevice
-        if (dstitem.isFastbootStorage && typeof ImageWriterSingleton.setFastbootDevice === "function") {
+        // FWDN storage devices use setFwdnDevice
+        if (dstitem.isFwdn && typeof ImageWriterSingleton.setFwdnDevice === "function") {
+            ImageWriterSingleton.setFwdnDevice(dstitem.device, dstitem.fwdnBoardType, dstitem.fwdnPort)
+        } else if (dstitem.isFastbootStorage && typeof ImageWriterSingleton.setFastbootDevice === "function") {
             ImageWriterSingleton.setFastbootDevice(dstitem.device, dstitem.size)
         } else if (dstitem.isRpiboot && typeof ImageWriterSingleton.setRpibootDevice === "function") {
             // Pass the chosen storage block-device name through to the rpiboot

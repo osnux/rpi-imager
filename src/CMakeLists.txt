@@ -341,6 +341,8 @@ set(SOURCES ${SOURCES}
     "fastboot/pieeprom.cpp"
     "fastboot/eeprom_signer.cpp"
     "fastbootflashthread.cpp"
+    "fwdn/fwdn_scanner.cpp"
+    "fwdn/fwdnflashthread.cpp"
     "connect_device_registrar.cpp"
     "settings_permissions.cpp"
 )
@@ -630,6 +632,16 @@ else()
     else()
         target_link_libraries(${PROJECT_NAME} PRIVATE ${QT}::Core ${QT}::Gui ${QT}::Quick ${QT}::Svg ${QT}::Network ${CURL_LIBRARIES} ${LibArchive_LIBRARIES} ${ZSTD_LIBRARIES} ${LIBLZMA_LIBRARIES} ${ZLIB_LIBRARIES} ${YESCRYPT_LIBRARIES} ${LIBDRM_LIBRARIES} ${ATOMIC_LIBRARY} ${RPIBOOT_LIBS} ${EXTRALIBS})
     endif()
+endif()
+
+# Copy TOPST tools to output directory
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>/tools
+        COMMENT "Copying TOPST tools to output directory"
+    )
 endif()
 
 # Testing

@@ -95,7 +95,8 @@ public:
     enum driveListRoles {
         deviceRole = Qt::UserRole + 1, descriptionRole, sizeRole, isUsbRole, isScsiRole, isReadOnlyRole, isSystemRole, mountpointsRole, childDevicesRole,
         isRpibootRole,
-        isFastbootStorageRole, fastbootBlockDeviceRole, fastbootStorageTypeRole
+        isFastbootStorageRole, fastbootBlockDeviceRole, fastbootStorageTypeRole,
+        isFwdnRole, fwdnBoardTypeRole, fwdnPortRole
     };
 
 signals:
