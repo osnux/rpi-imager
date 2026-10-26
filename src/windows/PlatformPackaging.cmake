@@ -171,6 +171,7 @@ if(ENABLE_INNO_INSTALLER)
     find_program(INNO_COMPILER NAMES iscc ISCC "iscc.exe" PATHS
         "C:/Program Files (x86)/Inno Setup 6"
         "C:/Program Files/Inno Setup 6"
+        "$ENV{LOCALAPPDATA}/Programs/Inno Setup 6"
         DOC "Path to Inno Setup compiler")
 
     if(INNO_COMPILER)
